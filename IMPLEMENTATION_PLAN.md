@@ -13,9 +13,23 @@ We are implementing it as a sequence of agent-executable phases. Each phase has 
 
 ---
 
-## Phase 0 — Scaffolding, credentials, repo
+## Phase 0 — Scaffolding, credentials, repo ✅ COMPLETE (2026-05-13)
 
 **Goal:** Project skeleton compiles and starts (no-op), credentials are gathered, repo is on GitHub.
+
+**Results**
+- ✅ 24 files created — full directory tree per PRD §5, all stubs with docstrings
+- ✅ `requirements.txt` — 12 packages including `openai>=1.0.0`
+- ✅ `.env.example` — all 15 vars, no values
+- ✅ `.gitignore` — excludes `.env`, `__pycache__/`, `*.pyc`, `*.json`, `.venv/`, `dryrun_output/`, `state/`
+- ✅ `README.md` — setup instructions + DRY_RUN note
+- ✅ `main.py` — verified: exits 0, logs `"Family Voice Archive started"`
+- ✅ `pip install -r requirements.txt` — succeeded in fresh venv
+- ✅ GitHub repo: https://github.com/danny031103/family-voice-archive (private)
+- ✅ `.env` and service-account JSON NOT committed
+
+**Pending before Phase 1**
+- Add `MOM_CHAT_ID` and `DAD_CHAT_ID` to `.env` when available
 
 **Deliverables**
 - Directory tree exactly as PRD §5 — all module files exist as stubs with docstrings.
@@ -43,9 +57,27 @@ retrieval/{__init__.py,rag.py}
 
 ---
 
-## Phase 1 — Core capture & processing pipeline
+## Phase 1 — Core capture & processing pipeline ✅ COMPLETE (2026-05-13)
 
 **Goal:** A real voice note sent to the bot produces an audio file + markdown note in Google Drive and an archivist notification. **No scheduler yet, no embeddings yet.**
+
+**Results**
+- ✅ `config.py` — all 16 env vars loaded as typed constants; `ALLOWED_CHAT_IDS` dict; `DRY_RUN` bool; `CLAUDE_MODEL` constant
+- ✅ `processing/claude.py` — Anthropic client; `transcribe()` + `structure_transcript()` with tenacity 3× exponential backoff; JSON fence-stripping
+- ✅ `processing/transcription.py` — reads audio bytes → `claude.transcribe()` → transcript; raises `TranscriptionError` on failure
+- ✅ `processing/structurer.py` — calls `claude.structure_transcript()`, validates `title/themes/summary/folder` keys
+- ✅ `storage/obsidian.py` — `make_slug`, `make_audio_filename`, `make_note_filename`, `format_note` per PRD §7 template
+- ✅ `storage/google_drive.py` — service-account auth; `ensure_folder`; `upload_audio` → `_audio/<person>/`; `upload_note` → `<person>/<folder>/`; tenacity on uploads
+- ✅ `bot/handlers.py` — full pipeline: allowlist check → download → transcribe → structure → format → DRY_RUN or Drive upload → confirm sender → notify archivist; unknown senders silently ignored; errors routed to archivist only
+- ✅ `main.py` — `Application` polling with `VOICE` → `handle_voice` and `TEXT & ~COMMAND` → `handle_text`
+- ✅ `DRY_RUN=true` writes to `./dryrun_output/<person>/`; logs what would be sent to Drive
+- ✅ All imports verified clean: `python -c "import config; import bot.handlers; import processing.claude; import storage.google_drive; import storage.obsidian"` exits 0
+
+**Pending verification (requires live Telegram + Drive)**
+- Send a voice note with `DRY_RUN=true` → confirm `dryrun_output/` files with correct frontmatter
+- Flip `DRY_RUN=false` → confirm files appear in Google Drive, archivist notified
+- Text message → "Voice notes work best!" reply
+- Unknown sender → silent ignore
 
 **Deliverables**
 - `bot/handlers.py`: voice-message handler — identifies sender by chat ID (allowlist from env), downloads `.ogg` from Telegram, ignores unknown senders silently, replies with "Got it, thank you ♥" on success, plain-text replies redirect to voice (PRD §11).

@@ -1,25 +1,25 @@
 """Format markdown notes with frontmatter and inline audio embed for Obsidian."""
-# Imports planned:
-# import datetime
-# from config import OBSIDIAN_VAULT_NAME
+import re
 
-# Note format:
-#   ---
-#   title: <title>
-#   date: YYYY-MM-DD
-#   person: <person>
-#   themes: [<theme1>, <theme2>]
-#   prompt: <original prompt>
-#   ---
-#   # <title>
-#
-#   ![[YYYY-MM-DD-person-slug.ogg]]
-#
-#   ## Summary
-#   <summary>
-#
-#   ## Transcript
-#   <transcript with stage directions inline>
+
+def make_slug(title: str) -> str:
+    """Convert title to lowercase-hyphenated slug for filenames."""
+    slug = title.lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", slug)
+    slug = slug.strip("-")
+    return slug
+
+
+def make_audio_filename(date: str, person: str, title: str) -> str:
+    """Return YYYY-MM-DD-person-slug.ogg filename."""
+    slug = make_slug(title)
+    return f"{date}-{person.lower()}-{slug}.ogg"
+
+
+def make_note_filename(date: str, title: str) -> str:
+    """Return YYYY-MM-DD-slug.md filename."""
+    slug = make_slug(title)
+    return f"{date}-{slug}.md"
 
 
 def format_note(
@@ -33,27 +33,26 @@ def format_note(
     audio_filename: str,
 ) -> str:
     """Return formatted markdown string ready for Obsidian."""
-    # TODO: build YAML frontmatter block
-    # TODO: add heading, audio embed (![[filename.ogg]])
-    # TODO: add Summary section
-    # TODO: add Transcript section
-    # TODO: return complete markdown string
-    pass
+    themes_inline = ", ".join(themes)
+    person_lower = person.lower()
 
+    note = f"""---
+title: {title}
+person: {person}
+date: {date}
+prompt: "{prompt}"
+theme: [{themes_inline}]
+summary: {summary}
+audio: _audio/{person_lower}/{audio_filename}
+---
 
-def make_slug(title: str) -> str:
-    """Convert title to lowercase-hyphenated slug for filenames."""
-    # TODO: lowercase, replace spaces/special chars with hyphens, strip leading/trailing
-    pass
+## Prompt
+"{prompt}"
 
+## Voice Recording
+![[{audio_filename}]]
 
-def make_audio_filename(date: str, person: str, title: str) -> str:
-    """Return YYYY-MM-DD-person-slug.ogg filename."""
-    # TODO: combine date + person + slug
-    pass
-
-
-def make_note_filename(date: str, title: str) -> str:
-    """Return YYYY-MM-DD-slug.md filename."""
-    # TODO: combine date + slug
-    pass
+## Transcript
+{transcript}
+"""
+    return note
