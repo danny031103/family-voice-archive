@@ -100,9 +100,24 @@ retrieval/{__init__.py,rag.py}
 
 ---
 
-## Phase 2 — Prompt scheduler & basic commands
+## Phase 2 — Prompt scheduler & basic commands ✅ COMPLETE (2026-05-13)
 
 **Goal:** Bot autonomously prompts parents on cadence and supports archivist status commands.
+
+**Results**
+- ✅ `config.py` — `PROMPT_BANK` populated with 109 warm, conversational prompts across 8 categories: Childhood (20), Family History (15), Advice & Wisdom (15), About the Archivist (15), Funny & Embarrassing (10), Work & Career (12), Romance & Marriage (12), Deeper Reflections (8)
+- ✅ `bot/state.py` (new) — state manager: `load_state`, `save_state`, `default_person_state`, `append_recording`, `load_recording_index`; creates `state/` dir on first write; files: `state/scheduler_state.json`, `state/recording_index.json`
+- ✅ `bot/scheduler.py` — `AsyncIOScheduler` with `CronTrigger` per parent (timezone-aware, every `PROMPT_CADENCE_DAYS`); rotating prompt index persisted to state; one-shot `DateTrigger` nudge 48h after each prompt; nudge fires once only (`nudge_sent` flag)
+- ✅ `bot/commands.py` — `/status` (totals + last prompt/response), `/history [name]` (last 10 from index), `/prompt [name]` (immediate send), `/add <name> <chat_id>` (writes `state/allowlist.json`, restart reminder), `/ask` (stub — Phase 4)
+- ✅ `bot/handlers.py` — after successful save: updates `last_response_time`, increments `recording_count`, appends to `recording_index.json`
+- ✅ `main.py` — all 5 command handlers registered; scheduler started via `post_init` / stopped via `post_shutdown` PTB 20.x hooks; scheduler stored on `app.bot_data["scheduler"]`
+- ✅ Import check passed: `import config; from bot import scheduler, commands, handlers` exits 0
+
+**Pending verification (requires live Telegram)**
+- Set `MOM_PROMPT_TIME` to ~2 minutes in the future → prompt arrives at the right time in the right timezone
+- `/status` returns sensible counts; `/history Mom` lists recent notes
+- `/prompt Dad` fires immediately
+- Simulate "no response in 48h" → nudge sent once, not twice
 
 **Deliverables**
 - `config.py`: **prompt bank of 100+ prompts** across the categories in PRD §8 (childhood, family history, advice, about-archivist, funny, work, romance). Tone warm/conversational.
@@ -114,12 +129,6 @@ retrieval/{__init__.py,rag.py}
   - `/prompt <name>` — fires a prompt now, outside cadence.
   - `/add <name> <chat_id>` — appends to allowlist (writes to a local JSON state file; document that Render restart picks it up).
 - Track sent prompts and pending responses in a small JSON state file (`state/scheduler_state.json`).
-
-**Verification**
-- Set `MOM_PROMPT_TIME` to ~2 minutes in the future → prompt arrives on Mom's Telegram at the right time in the right timezone.
-- `/status` returns sensible counts; `/history Mom` lists recent notes.
-- `/prompt Dad` fires immediately.
-- Simulate "no response in 48h" by shortening the nudge interval in a debug env var → nudge sent once, not twice.
 
 ---
 

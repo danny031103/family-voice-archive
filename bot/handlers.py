@@ -12,6 +12,7 @@ from processing.transcription import TranscriptionError, transcribe_audio
 from processing.structurer import structure
 from storage.google_drive import upload_audio, upload_note
 from storage.obsidian import format_note, make_audio_filename, make_note_filename
+from bot.state import append_recording, default_person_state, load_state, save_state
 
 logger = logging.getLogger(__name__)
 
@@ -92,10 +93,19 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             await upload_audio(tmp_path, person, audio_filename)
             await upload_note(note_content, person, folder, note_filename)
 
-        # 10. Reply to sender
+        # 10. Update state
+        state = load_state()
+        person_state = state.get(person, default_person_state())
+        person_state["last_response_time"] = datetime.datetime.utcnow().isoformat()
+        person_state["recording_count"] = person_state.get("recording_count", 0) + 1
+        state[person] = person_state
+        save_state(state)
+        append_recording({"person": person, "title": title, "date": today, "folder": folder})
+
+        # 11. Reply to sender
         await update.message.reply_text("Got it, thank you ♥")
 
-        # 11. Notify archivist
+        # 12. Notify archivist
         await context.bot.send_message(
             ARCHIVIST_CHAT_ID,
             f"New story from {person} saved! \U0001f3b5 {folder} > {title}",

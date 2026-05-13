@@ -1,49 +1,142 @@
 """Telegram bot commands — /ask, /status, /history, /prompt, /add."""
-# Imports planned:
-# from telegram import Update
-# from telegram.ext import ContextTypes
-# from config import ARCHIVIST_CHAT_ID, ALLOWED_CHAT_IDS
-# from retrieval.rag import answer_query
-# from storage.vector_db import get_recent_recordings
-# from bot.scheduler import send_prompt
+import json
+import logging
+import os
+
+from telegram import Update
+from telegram.ext import ContextTypes
+
+from config import ALLOWED_CHAT_IDS, ARCHIVIST_CHAT_ID
+from bot.state import (
+    default_person_state,
+    load_recording_index,
+    load_state,
+    save_state,
+)
+from bot.scheduler import send_prompt
+
+logger = logging.getLogger(__name__)
+
+_ALLOWLIST_FILE = os.path.join(os.path.dirname(__file__), "..", "state", "allowlist.json")
 
 
-async def cmd_ask(update, context):
+def _is_archivist(update: Update) -> bool:
+    return update.effective_chat.id == ARCHIVIST_CHAT_ID
+
+
+async def cmd_ask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/ask <question> — semantic search across all recordings (Phase 4)."""
-    # TODO: validate sender is archivist
-    # TODO: extract question from message
-    # TODO: call retrieval.rag.answer_query
-    # TODO: reply with answer + source citations
-    pass
+    if not _is_archivist(update):
+        return
+    await update.message.reply_text("RAG search coming in Phase 4.")
 
 
-async def cmd_status(update, context):
+async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/status — show last prompt sent and response status for each parent."""
-    # TODO: validate sender is archivist
-    # TODO: read state for Mom and Dad (last prompt time, last response time)
-    # TODO: format and reply with status summary
-    pass
+    if not _is_archivist(update):
+        return
+
+    state = load_state()
+    lines = ["*Archive Status*\n"]
+
+    for person in ["Mom", "Dad"]:
+        ps = state.get(person, default_person_state())
+        last_prompt = ps.get("last_prompt_text") or "—"
+        last_prompt_sent = ps.get("last_prompt_sent") or "never"
+        last_response = ps.get("last_response_time") or "never"
+        count = ps.get("recording_count", 0)
+
+        lines.append(
+            f"*{person}*\n"
+            f"  Recordings: {count}\n"
+            f"  Last prompt: {last_prompt[:60]}{'…' if len(last_prompt) > 60 else ''}\n"
+            f"  Prompt sent: {last_prompt_sent}\n"
+            f"  Last response: {last_response}\n"
+        )
+
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
 
-async def cmd_history(update, context):
-    """/history [person] — list recent recordings for a person."""
-    # TODO: validate sender is archivist
-    # TODO: query Supabase for recent recordings
-    # TODO: format and reply with list
-    pass
+async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/history [person] — list last 10 recordings for a person."""
+    if not _is_archivist(update):
+        return
+
+    args = context.args
+    person_filter = args[0].strip() if args else None
+
+    index = load_recording_index()
+
+    if person_filter:
+        entries = [e for e in index if e.get("person", "").lower() == person_filter.lower()]
+    else:
+        entries = index
+
+    recent = entries[-10:] if len(entries) > 10 else entries
+    recent = list(reversed(recent))
+
+    if not recent:
+        label = f" for {person_filter}" if person_filter else ""
+        await update.message.reply_text(f"No recordings found{label}.")
+        return
+
+    lines = [f"*Last {len(recent)} recording(s)*\n"]
+    for e in recent:
+        lines.append(f"• [{e.get('date', '?')}] *{e.get('person', '?')}* — {e.get('title', '?')} ({e.get('folder', '?')})")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
 
-async def cmd_prompt(update, context):
-    """/prompt [person] — immediately send a story prompt to a parent."""
-    # TODO: validate sender is archivist
-    # TODO: determine target (Mom, Dad, or both)
-    # TODO: call scheduler.send_prompt
-    pass
+async def cmd_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/prompt [name] — immediately send a story prompt to a parent."""
+    if not _is_archivist(update):
+        return
+
+    args = context.args
+    app = context.application
+    if args:
+        name = args[0].strip()
+        chat_id = ALLOWED_CHAT_IDS.get(name)
+        if chat_id is None:
+            await update.message.reply_text(f"Unknown person: {name}. Known: {', '.join(ALLOWED_CHAT_IDS.keys())}")
+            return
+        await send_prompt(app, chat_id, name)
+        await update.message.reply_text(f"Prompt sent to {name}.")
+    else:
+        for name, chat_id in ALLOWED_CHAT_IDS.items():
+            if chat_id:
+                await send_prompt(app, chat_id, name)
+        await update.message.reply_text("Prompts sent to all parents.")
 
 
-async def cmd_add(update, context):
-    """/add <prompt text> — add a custom prompt to the bank."""
-    # TODO: validate sender is archivist
-    # TODO: append prompt to the runtime prompt bank
-    # TODO: confirm with reply
-    pass
+async def cmd_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/add <name> <chat_id> — add a new person to the allowlist."""
+    if not _is_archivist(update):
+        return
+
+    args = context.args
+    if len(args) < 2:
+        await update.message.reply_text("Usage: /add <name> <chat_id>")
+        return
+
+    name = args[0].strip()
+    try:
+        chat_id = int(args[1].strip())
+    except ValueError:
+        await update.message.reply_text("chat_id must be an integer.")
+        return
+
+    os.makedirs(os.path.dirname(_ALLOWLIST_FILE), exist_ok=True)
+    if os.path.exists(_ALLOWLIST_FILE):
+        with open(_ALLOWLIST_FILE, "r", encoding="utf-8") as f:
+            allowlist = json.load(f)
+    else:
+        allowlist = {}
+
+    allowlist[name] = chat_id
+    with open(_ALLOWLIST_FILE, "w", encoding="utf-8") as f:
+        json.dump(allowlist, f, indent=2)
+
+    await update.message.reply_text(
+        f"Added {name} (chat_id={chat_id}) to allowlist.json. Restart the bot for the change to take effect."
+    )
