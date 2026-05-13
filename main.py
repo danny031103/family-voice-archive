@@ -8,6 +8,7 @@ from bot.handlers import handle_voice, handle_text
 from bot.commands import cmd_ask, cmd_status, cmd_history, cmd_prompt, cmd_add
 from bot.scheduler import build_scheduler
 from config import TELEGRAM_BOT_TOKEN
+from processing.embeddings import sweep_unembedded
 
 
 def main() -> None:
@@ -27,6 +28,7 @@ def main() -> None:
         application.bot_data["scheduler"] = scheduler
         scheduler.start()
         logger.info("APScheduler started")
+        await sweep_unembedded()
 
     async def post_shutdown(application: Application) -> None:
         if scheduler is not None and scheduler.running:

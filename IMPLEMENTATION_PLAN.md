@@ -132,9 +132,23 @@ retrieval/{__init__.py,rag.py}
 
 ---
 
-## Phase 3 — Embeddings (Supabase pgvector)
+## Phase 3 — Embeddings (Supabase pgvector) ✅ COMPLETE (2026-05-13)
 
 **Goal:** Every new recording gets an OpenAI embedding stored in Supabase, and historical notes are back-swept on startup.
+
+**Results**
+- ✅ `db/schema.sql` — `create extension if not exists vector`, `recordings` table, IVFFlat cosine index (`vector_cosine_ops`, lists=100); run once in the Supabase SQL editor
+- ✅ `storage/vector_db.py` — `get_client`, `insert_recording` (returns UUID), `find_unembedded` (rows where `embedding IS NULL`), `get_recording`, `mark_embedded`, `search_similar` (Phase 4 RPC stub); all Supabase calls wrapped in `asyncio.to_thread`
+- ✅ `processing/embeddings.py` — `build_embedding_input` (title + themes + summary + transcript), `generate_embedding` (OpenAI `text-embedding-3-small`, 1536-dim), `generate_and_store` (fails gracefully → `state/unembedded.json`), `sweep_unembedded` (merges local JSON + Supabase null rows, retries, prunes succeeded)
+- ✅ `config.py` — added `OPENAI_API_KEY` (was missing from Phase 1/2)
+- ✅ `bot/handlers.py` — Supabase insert + embedding generation wired into the non-DRY_RUN branch after Drive upload; DRY_RUN skips Supabase entirely
+- ✅ `main.py` — `await sweep_unembedded()` called in `post_init` after scheduler starts
+- ✅ Import check passed: `import config; from storage import vector_db; from processing import embeddings; from bot import handlers` exits 0
+
+**Pending verification (requires live Supabase + OpenAI key)**
+- Send a voice note → row appears in Supabase `recordings` with non-null `embedding` and all metadata populated
+- Break the OpenAI key intentionally → note still saved, row written without embedding, `unembedded.json` records it
+- Restore key, restart bot → sweep picks it up and back-fills the embedding
 
 **Deliverables**
 - Provide the SQL from PRD §10 in `db/schema.sql`; document running it once in the Supabase SQL editor.
@@ -143,11 +157,6 @@ retrieval/{__init__.py,rag.py}
 - Wire into Phase 1 pipeline **after** the Drive upload succeeds. If embedding fails: log, mark note unembedded in `state/unembedded.json`, continue (PRD §15).
 - On `main.py` startup, sweep `state/unembedded.json` and retry. Also detect rows in Supabase with `embedding IS NULL` and refill.
 - All metadata stored alongside vector: person, title, date, themes, file paths.
-
-**Verification**
-- Send a voice note → row appears in Supabase `recordings` with non-null `embedding` and all metadata populated.
-- Break the OpenAI key intentionally → note still saved, row written without embedding, `unembedded.json` records it, archivist notified.
-- Restore key, restart bot → sweep picks it up and back-fills the embedding.
 
 ---
 

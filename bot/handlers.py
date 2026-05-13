@@ -10,8 +10,10 @@ from telegram.ext import ContextTypes
 from config import ALLOWED_CHAT_IDS, ARCHIVIST_CHAT_ID, DRY_RUN
 from processing.transcription import TranscriptionError, transcribe_audio
 from processing.structurer import structure
+from processing import embeddings
 from storage.google_drive import upload_audio, upload_note
 from storage.obsidian import format_note, make_audio_filename, make_note_filename
+from storage import vector_db
 from bot.state import append_recording, default_person_state, load_state, save_state
 
 logger = logging.getLogger(__name__)
@@ -92,6 +94,22 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         else:
             await upload_audio(tmp_path, person, audio_filename)
             await upload_note(note_content, person, folder, note_filename)
+
+            audio_drive_path = f"_audio/{person.lower()}/{audio_filename}"
+            note_drive_path = f"{person}/{folder}/{note_filename}"
+            row = {
+                "person": person,
+                "title": title,
+                "date": today,
+                "prompt": prompt,
+                "themes": themes,
+                "summary": summary,
+                "transcript": transcript,
+                "audio_drive_path": audio_drive_path,
+                "obsidian_note_path": note_drive_path,
+            }
+            recording_id = await vector_db.insert_recording(row)
+            await embeddings.generate_and_store(recording_id, row)
 
         # 10. Update state
         state = load_state()

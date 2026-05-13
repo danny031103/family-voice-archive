@@ -14,6 +14,9 @@ DAD_CHAT_ID: int = int(os.environ["DAD_CHAT_ID"]) if os.environ.get("DAD_CHAT_ID
 ANTHROPIC_API_KEY: str = os.environ["ANTHROPIC_API_KEY"]
 CLAUDE_MODEL: str = "claude-sonnet-4-20250514"
 
+# --- OpenAI ---
+OPENAI_API_KEY: str = os.environ["OPENAI_API_KEY"]
+
 # --- Supabase ---
 SUPABASE_URL: str = os.environ["SUPABASE_URL"]
 SUPABASE_KEY: str = os.environ["SUPABASE_KEY"]
