@@ -25,10 +25,36 @@ def _is_archivist(update: Update) -> bool:
 
 
 async def cmd_ask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """/ask <question> — semantic search across all recordings (Phase 4)."""
+    """/ask <question> — semantic search across all recordings."""
     if not _is_archivist(update):
         return
-    await update.message.reply_text("RAG search coming in Phase 4.")
+
+    question = " ".join(context.args).strip() if context.args else ""
+    if not question:
+        await update.message.reply_text("Usage: /ask <question>\nExample: /ask What did Mom say about her childhood?")
+        return
+
+    placeholder = await update.message.reply_text("Searching the archive…")
+
+    try:
+        from retrieval.rag import answer_query
+        result = await answer_query(question)
+    except Exception as exc:
+        logger.error("RAG query failed: %s", exc)
+        await placeholder.edit_text("Sorry, something went wrong while searching the archive. Please try again.")
+        return
+
+    answer = result["answer"]
+    sources = result["sources"]
+
+    lines = [answer]
+    if sources:
+        lines.append("\n*Sources:*")
+        for s in sources:
+            folder = s.get("obsidian_note_path") or "—"
+            lines.append(f"• {s['title']} — {s['date']} — {s['person']} — `{folder}`")
+
+    await placeholder.edit_text("\n".join(lines), parse_mode="Markdown")
 
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

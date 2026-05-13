@@ -160,24 +160,30 @@ retrieval/{__init__.py,rag.py}
 
 ---
 
-## Phase 4 — RAG `/ask` query
+## Phase 4 — RAG `/ask` query ✅ COMPLETE (2026-05-13)
 
 **Goal:** Archivist can ask natural-language questions over the archive in Telegram.
+
+**Results**
+- ✅ `retrieval/rag.py` — `retrieve_context` embeds the question with `text-embedding-3-small`, calls `search_similar` (top-5 by cosine similarity); `answer_query` builds a per-recording context block (person, date, title, themes, summary, transcript) and calls Claude with a warm archivist system prompt; returns `{"answer": str, "sources": list}`
+- ✅ `bot/commands.py` — `cmd_ask` stub replaced: validates non-empty question, sends "Searching the archive…" placeholder, awaits `answer_query`, edits placeholder with answer + bulleted source citations (title — date — person — path); errors show a friendly message and log to archivist only; non-archivist senders ignored
+- ✅ `db/schema.sql` — `match_recordings` RPC function appended (cosine similarity via `embedding <=> query_embedding`, filters `embedding IS NOT NULL`, returns `similarity` score); run once in Supabase SQL editor
+- ✅ Import check passed: `from retrieval import rag; from bot import commands` exits 0
+
+**Pending verification (requires live Supabase + OpenAI key + seeded archive)**
+- Seed the archive with ≥5 real notes covering different themes
+- `/ask what did Mom say about her childhood?` returns an answer that quotes only retrieved notes and cites them
+- `/ask` with a topic absent from the archive → answer honestly says it doesn't have that info
+- `/ask` from a non-archivist chat ID → ignored
 
 **Deliverables**
 - `retrieval/rag.py`:
   1. Embed the question with the same OpenAI model.
-  2. Supabase `match` query — top 5 by cosine similarity (requires `vector_cosine_ops` index on `embedding`; include in `db/schema.sql`).
-  3. Build the Claude prompt verbatim from PRD §10 with the retrieved transcripts substituted.
+  2. Supabase `match_recordings` RPC — top 5 by cosine similarity (requires `vector_cosine_ops` index on `embedding`; included in `db/schema.sql`).
+  3. Build the Claude prompt with the retrieved transcripts substituted.
   4. Generate answer, return alongside citation list (titles + dates + Obsidian paths).
 - `bot/commands.py`: `/ask <question>` handler. Restricted to the archivist chat ID. Sends "Searching…" placeholder, edits with the result.
-- Telegram reply format: warm answer paragraph + a bullet list of source recordings (title — date — folder path).
-
-**Verification**
-- Seed the archive with ≥5 real notes covering different themes.
-- `/ask what did Mom say about her childhood?` returns an answer that quotes only retrieved notes and cites them.
-- `/ask` with a topic absent from the archive → answer honestly says it doesn't have that info (per the PRD prompt).
-- `/ask` from a non-archivist chat ID → ignored.
+- Telegram reply format: warm answer paragraph + a bullet list of source recordings (title — date — person — folder path).
 
 ---
 
