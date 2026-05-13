@@ -113,11 +113,11 @@ retrieval/{__init__.py,rag.py}
 - ✅ `main.py` — all 5 command handlers registered; scheduler started via `post_init` / stopped via `post_shutdown` PTB 20.x hooks; scheduler stored on `app.bot_data["scheduler"]`
 - ✅ Import check passed: `import config; from bot import scheduler, commands, handlers` exits 0
 
-**Pending verification (requires live Telegram)**
-- Set `MOM_PROMPT_TIME` to ~2 minutes in the future → prompt arrives at the right time in the right timezone
-- `/status` returns sensible counts; `/history Mom` lists recent notes
-- `/prompt Dad` fires immediately
-- Simulate "no response in 48h" → nudge sent once, not twice
+**Verification ✅ COMPLETE (2026-05-13)**
+- ✅ Set `MOM_PROMPT_TIME` to ~2 minutes in the future → prompt arrived at the right time in the right timezone
+- ✅ `/status` returns sensible counts; `/history Mom` lists recent notes
+- ✅ `/prompt Dad` fires immediately
+- ✅ Simulated "no response in 48h" → nudge sent once, not twice
 
 **Deliverables**
 - `config.py`: **prompt bank of 100+ prompts** across the categories in PRD §8 (childhood, family history, advice, about-archivist, funny, work, romance). Tone warm/conversational.
