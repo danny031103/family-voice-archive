@@ -189,20 +189,31 @@ retrieval/{__init__.py,rag.py}
 
 ## Phase 5 — Render deployment & smoke test
 
-**Goal:** Bot runs 24/7 on Render free tier, archivist's machine can be off.
+**Goal:** Bot runs 24/7 on Render free tier ($0/mo), archivist's machine can be off.
+
+**Approach:** Render **free Web Service** (not Background Worker) + Telegram **webhook mode** + cron-job.org pinging every 10 min to prevent Render's 15-min spin-down. APScheduler continues running inside the same process — no scheduler changes needed.
 
 **Deliverables**
-- Render **Background Worker** (not Web Service) wired to the GitHub `main` branch.
-- Build: `pip install -r requirements.txt`. Start: `python main.py`.
-- All env vars from PRD §12 set in the Render dashboard.
+- `main.py` — conditional webhook/polling: if `WEBHOOK_URL` env var is set, calls `app.run_webhook()`; otherwise falls back to `app.run_polling()` (preserves local dev ergonomics).
+- `config.py` — reads optional `WEBHOOK_URL` and `WEBHOOK_SECRET`; local `.env` needs no changes (leave blank).
+- `.env` — append blank `WEBHOOK_URL=` and `WEBHOOK_SECRET=` entries for local clarity.
+- `render.yaml` (new at repo root) — Render Blueprint: type `web`, plan `free`, build `pip install -r requirements.txt`, start `python main.py`, `healthCheckPath: /`, all env vars listed (`PORT` omitted — auto-injected by Render).
+- README updated with first-deploy steps: push `render.yaml` → Blueprint → copy assigned URL → paste into `WEBHOOK_URL` env var → redeploy → verify with `getWebhookInfo` → set up cron-job.org (GET every 10 min).
 - Google Drive desktop app installed on the archivist's Mac, syncing `Family Archive/` to a local path.
 - Obsidian vault pointed at that local path; verify `.ogg` plays inline.
-- README updated with: deploy steps, how to add a new family member, how to run locally with `DRY_RUN`.
+
+**Risks**
+- Running `python main.py` locally (no `WEBHOOK_URL`) while Render is live will call `deleteWebhook` and break the deployment. Clear it first: `curl https://api.telegram.org/bot<TOKEN>/deleteWebhook`.
+- `WEBHOOK_SECRET` guards against webhook spoofing — PTB verifies the `X-Telegram-Bot-Api-Secret-Token` header and rejects mismatches.
+- Render free tier: 750 hrs/month — sufficient for one always-on service (~730 hrs/month).
 
 **Verification**
-- Push a trivial commit → Render auto-deploys, worker logs show "started".
-- Send a voice note with the archivist's machine **off** → next time the Mac wakes, Drive syncs and the note appears in Obsidian with audio playable.
-- `/status` from Telegram returns live data from the Render-hosted process.
+1. `curl https://api.telegram.org/bot<TOKEN>/getWebhookInfo` → `url` matches `https://<service>.onrender.com/<token>`, `pending_update_count` = 0, no `last_error_message`.
+2. Send a voice note from an allowlisted chat → archivist gets "✅ Saved" notification, audio in Drive, markdown in themed folder, Supabase row with non-null embedding.
+3. `/status`, `/prompt mom`, `/ask <question>` all respond from archivist chat.
+4. Check Render logs at next scheduled `MOM_PROMPT_TIME` / `DAD_PROMPT_TIME` for `send_prompt` log line — APScheduler still firing.
+5. After cron-job.org runs for an hour, check Render "Events" tab — no "Service spun down" entries.
+6. With `WEBHOOK_URL` unset in local `.env`, `python main.py` logs "Bot running (polling mode)" and works as before.
 
 ---
 

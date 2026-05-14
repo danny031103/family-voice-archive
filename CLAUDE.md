@@ -34,7 +34,9 @@ Telegram voice note → download audio → Claude transcription → Claude struc
 → Archivist notification
 ```
 
-The bot runs on Render as a **Background Worker** (not a Web Service — background workers don't spin down on free tier). APScheduler runs inside the same process for prompt scheduling.
+The bot runs on Render as a **free Web Service** using Telegram **webhook mode**. A cron-job.org job pings the service root every 10 minutes to prevent Render's 15-minute spin-down. APScheduler runs inside the same process for prompt scheduling — no changes needed from polling mode.
+
+Local dev uses polling mode (no `WEBHOOK_URL` set). **Do not run locally while Render is live** — PTB's polling will call `deleteWebhook` and break the deployment.
 
 ### Module responsibilities
 
