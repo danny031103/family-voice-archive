@@ -1,5 +1,6 @@
 """Upload audio .ogg and markdown .md to Google Drive."""
 import io
+import json
 import logging
 
 from google.oauth2 import service_account
@@ -15,11 +16,17 @@ SCOPES = ["https://www.googleapis.com/auth/drive"]
 
 
 def get_drive_service():
-    """Return an authenticated Google Drive service client."""
-    creds = service_account.Credentials.from_service_account_file(
-        GOOGLE_SERVICE_ACCOUNT_JSON,
-        scopes=SCOPES,
-    )
+    """Return an authenticated Google Drive service client.
+
+    GOOGLE_SERVICE_ACCOUNT_JSON may be a file path (local dev) or raw JSON
+    content (Render — paste the entire JSON as the env var value).
+    """
+    value = GOOGLE_SERVICE_ACCOUNT_JSON.strip()
+    if value.startswith("{"):
+        info = json.loads(value)
+        creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
+    else:
+        creds = service_account.Credentials.from_service_account_file(value, scopes=SCOPES)
     return build("drive", "v3", credentials=creds, cache_discovery=False)
 
 
