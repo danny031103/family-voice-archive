@@ -1,9 +1,11 @@
 """Entry point — starts Telegram polling + APScheduler."""
+import asyncio
 import logging
 import os
 
+from aiohttp import web
 from dotenv import load_dotenv
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, SimpleRequestHandler, filters
 
 from bot.handlers import handle_voice, handle_text
 from bot.commands import cmd_ask, cmd_status, cmd_history, cmd_prompt, cmd_add
@@ -11,14 +13,44 @@ from bot.scheduler import build_scheduler
 from config import TELEGRAM_BOT_TOKEN, WEBHOOK_URL, WEBHOOK_SECRET
 from processing.embeddings import sweep_unembedded
 
+load_dotenv()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+
+async def run_webhook(app: Application, port: int) -> None:
+    async def health(_request: web.Request) -> web.Response:
+        return web.Response(text="OK")
+
+    url_path = TELEGRAM_BOT_TOKEN
+    web_app = web.Application()
+    SimpleRequestHandler(
+        dispatcher=app,
+        secret_token=WEBHOOK_SECRET or None,
+    ).register(web_app, path=f"/{url_path}")
+    web_app.router.add_get("/", health)
+
+    runner = web.AppRunner(web_app)
+    await runner.setup()
+    await web.TCPSite(runner, "0.0.0.0", port).start()
+
+    async with app:
+        await app.bot.set_webhook(
+            url=f"{WEBHOOK_URL}/{url_path}",
+            secret_token=WEBHOOK_SECRET or None,
+        )
+        await app.start()
+        logger.info("Bot running (webhook mode) on port %s", port)
+        await asyncio.Event().wait()
+        await app.stop()
+
+    await runner.cleanup()
+
 
 def main() -> None:
-    load_dotenv()
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    )
-    logger = logging.getLogger(__name__)
     logger.info("Family Voice Archive starting…")
 
     scheduler = None
@@ -56,15 +88,7 @@ def main() -> None:
     port = int(os.getenv("PORT", "8080"))
 
     if WEBHOOK_URL:
-        url_path = TELEGRAM_BOT_TOKEN
-        logger.info("Bot running (webhook mode) on port %s", port)
-        app.run_webhook(
-            listen="0.0.0.0",
-            port=port,
-            url_path=url_path,
-            webhook_url=f"{WEBHOOK_URL}/{url_path}",
-            secret_token=WEBHOOK_SECRET or None,
-        )
+        asyncio.run(run_webhook(app, port))
     else:
         logger.info("Bot running (polling mode)")
         app.run_polling()
