@@ -1,5 +1,6 @@
 """Entry point — starts Telegram polling + APScheduler."""
 import logging
+import os
 
 from dotenv import load_dotenv
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
@@ -7,7 +8,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from bot.handlers import handle_voice, handle_text
 from bot.commands import cmd_ask, cmd_status, cmd_history, cmd_prompt, cmd_add
 from bot.scheduler import build_scheduler
-from config import TELEGRAM_BOT_TOKEN
+from config import TELEGRAM_BOT_TOKEN, WEBHOOK_URL, WEBHOOK_SECRET
 from processing.embeddings import sweep_unembedded
 
 
@@ -52,8 +53,21 @@ def main() -> None:
     app.add_handler(CommandHandler("add", cmd_add))
     app.add_handler(CommandHandler("ask", cmd_ask))
 
-    logger.info("Bot running (polling mode)")
-    app.run_polling()
+    port = int(os.getenv("PORT", "8080"))
+
+    if WEBHOOK_URL:
+        url_path = TELEGRAM_BOT_TOKEN
+        logger.info("Bot running (webhook mode) on port %s", port)
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=port,
+            url_path=url_path,
+            webhook_url=f"{WEBHOOK_URL}/{url_path}",
+            secret_token=WEBHOOK_SECRET or None,
+        )
+    else:
+        logger.info("Bot running (polling mode)")
+        app.run_polling()
 
 
 if __name__ == "__main__":

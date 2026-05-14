@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: family-voice-archive
+    runtime: python
+    plan: free
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: WEBHOOK_URL
+        sync: false
+      - key: WEBHOOK_SECRET
+        generateValue: true
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: ARCHIVIST_CHAT_ID
+        sync: false
+      - key: MOM_CHAT_ID
+        sync: false
+      - key: DAD_CHAT_ID
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: GOOGLE_DRIVE_FOLDER_ID
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: MOM_PROMPT_TIME
+        sync: false
+      - key: DAD_PROMPT_TIME
+        sync: false
+      - key: PROMPT_CADENCE_DAYS
+        sync: false
+      - key: MOM_TIMEZONE
+        sync: false
+      - key: DAD_TIMEZONE
+        sync: false
+      - key: OBSIDIAN_VAULT_NAME
+        sync: false

@@ -10,6 +10,10 @@ ARCHIVIST_CHAT_ID: int = int(os.environ["ARCHIVIST_CHAT_ID"])
 MOM_CHAT_ID: int = int(os.environ["MOM_CHAT_ID"]) if os.environ.get("MOM_CHAT_ID") else 0
 DAD_CHAT_ID: int = int(os.environ["DAD_CHAT_ID"]) if os.environ.get("DAD_CHAT_ID") else 0
 
+# --- Webhook (Render deployment) ---
+WEBHOOK_URL: str = os.environ.get("WEBHOOK_URL", "")
+WEBHOOK_SECRET: str = os.environ.get("WEBHOOK_SECRET", "")
+
 # --- Anthropic ---
 ANTHROPIC_API_KEY: str = os.environ["ANTHROPIC_API_KEY"]
 CLAUDE_MODEL: str = "claude-sonnet-4-20250514"

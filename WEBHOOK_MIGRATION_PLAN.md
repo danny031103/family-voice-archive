@@ -1,4 +1,9 @@
 # Plan: Deploy Telegram Bot to Render Free Web Service via Webhook Mode
+## Implementation Status: COMPLETE (2026-05-14)
+
+All five changes implemented and verified. See results section at the bottom.
+
+---
 
 ## Context
 
@@ -194,3 +199,24 @@ After deploying:
 ## Rollback
 
 If anything breaks: delete the Render Web Service, run `curl https://api.telegram.org/bot<TOKEN>/deleteWebhook` to clear the webhook, and resume local polling mode with `python main.py`. No data migration needed.
+
+---
+
+## Implementation Results (2026-05-14)
+
+All changes implemented via two parallel subagents. Files modified:
+
+| File | Status | Notes |
+|---|---|---|
+| `main.py` | ✅ Done | Added `import os`; replaced `run_polling()` with conditional webhook/polling block (lines 56–72) |
+| `config.py` | ✅ Done | Added `WEBHOOK_URL` and `WEBHOOK_SECRET` optional vars under new `# --- Webhook (Render deployment) ---` section |
+| `.env` | ✅ Done | Appended `WEBHOOK_URL=` and `WEBHOOK_SECRET=` with comment at end of file |
+| `render.yaml` | ✅ Done | New file created at repo root; Blueprint config with `healthCheckPath: /`, `WEBHOOK_SECRET` auto-generated, all other vars `sync: false` |
+| `README.md` | ✅ Done | "Deploy to Render" section rewritten with 5-step webhook flow + cron-job.org instructions + polling-conflict warning |
+
+### Next steps to complete the deployment
+1. Push this branch to `main`
+2. In Render dashboard: **New → Blueprint** → point at repo
+3. After first deploy: copy `https://<service>.onrender.com` → paste as `WEBHOOK_URL` → redeploy
+4. Verify: `curl https://api.telegram.org/bot<TOKEN>/getWebhookInfo`
+5. Set up cron-job.org: GET the service root every 10 minutes

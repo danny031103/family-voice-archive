@@ -30,15 +30,25 @@ Set `DRY_RUN=true` in `.env` to skip real uploads to Google Drive and Supabase d
 
 ## Deploy to Render
 
-1. In the Render dashboard, create a new **Background Worker** (not Web Service — background workers don't spin down on free tier).
-2. Connect it to the GitHub repo (`danny031103/family-voice-archive`), `main` branch.
-3. Set build command: `pip install -r requirements.txt`
-4. Set start command: `python main.py`
-5. Add all env vars under **Environment → Environment Variables**.
-   - For `GOOGLE_SERVICE_ACCOUNT_JSON`: paste the **entire contents** of the service account JSON file as the value (not a file path).
-6. Deploy. Worker logs should show `Family Voice Archive started`.
+The bot runs as a free **Web Service** on Render using Telegram webhook mode. A cron-job.org job pings the service every 10 minutes to prevent Render's 15-minute spin-down. Total cost: **$0/mo**.
+
+### First deploy
+
+1. Push `render.yaml` to `main`; in the Render dashboard click **New → Blueprint** and point it at the repo. Render creates the free Web Service automatically.
+2. After the first deploy completes, copy the assigned URL: `https://<service>.onrender.com`
+3. Paste that URL as the value of the `WEBHOOK_URL` env var in the Render dashboard, then redeploy.
+4. Verify the webhook registered:
+   ```
+   curl https://api.telegram.org/bot<TOKEN>/getWebhookInfo
+   ```
+   Expect `url` = `https://<service>.onrender.com/<token>` and `pending_update_count: 0`.
+5. **Set up cron-job.org**: create a job that GETs `https://<service>.onrender.com/` every **10 minutes**, 24/7.
+
+For `GOOGLE_SERVICE_ACCOUNT_JSON`: paste the **entire contents** of the service account JSON file as the value (not a file path).
 
 Auto-deploy is enabled — every push to `main` triggers a redeploy.
+
+> **Warning**: do not run `python main.py` locally while Render is live. PTB polling calls `deleteWebhook` and breaks the deployment. To resume local dev, first run `curl https://api.telegram.org/bot<TOKEN>/deleteWebhook`.
 
 ---
 
