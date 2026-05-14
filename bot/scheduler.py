@@ -1,21 +1,22 @@
-"""APScheduler cadence — prompts every N days per parent, nudge if no reply in 48h."""
+"""APScheduler cadence — randomised prompts per parent, nudge if no reply in 48h."""
 import datetime
 import logging
+import random
 
 import pytz
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 
 from config import (
     DAD_CHAT_ID,
-    DAD_PROMPT_TIME,
     DAD_TIMEZONE,
     MOM_CHAT_ID,
-    MOM_PROMPT_TIME,
     MOM_TIMEZONE,
     PROMPT_BANK,
-    PROMPT_CADENCE_DAYS,
+    PROMPT_CADENCE_MAX_DAYS,
+    PROMPT_CADENCE_MIN_DAYS,
+    PROMPT_HOUR_MAX,
+    PROMPT_HOUR_MIN,
 )
 from bot.state import default_person_state, load_state, save_state
 
@@ -23,39 +24,51 @@ logger = logging.getLogger(__name__)
 
 _NUDGE_HOURS = 48
 
+_PEOPLE = [
+    ("Mom", MOM_CHAT_ID, MOM_TIMEZONE),
+    ("Dad", DAD_CHAT_ID, DAD_TIMEZONE),
+]
+
+
+def _random_next_dt(timezone_str: str) -> datetime.datetime:
+    """Return a random future datetime within the configured window."""
+    tz = pytz.timezone(timezone_str)
+    now = datetime.datetime.now(tz)
+    days_ahead = random.randint(PROMPT_CADENCE_MIN_DAYS, PROMPT_CADENCE_MAX_DAYS)
+    hour = random.randint(PROMPT_HOUR_MIN, PROMPT_HOUR_MAX)
+    minute = random.randint(0, 59)
+    target = (now + datetime.timedelta(days=days_ahead)).replace(
+        hour=hour, minute=minute, second=0, microsecond=0
+    )
+    return target
+
+
+def _schedule_next(scheduler: AsyncIOScheduler, app, chat_id: int, person_name: str, timezone_str: str) -> None:
+    run_at = _random_next_dt(timezone_str)
+    scheduler.add_job(
+        send_prompt,
+        trigger=DateTrigger(run_date=run_at),
+        args=[app, chat_id, person_name, timezone_str],
+        id=f"prompt_{person_name.lower()}",
+        replace_existing=True,
+    )
+    logger.info("Next prompt for %s scheduled at %s", person_name, run_at.isoformat())
+
 
 def build_scheduler(app) -> AsyncIOScheduler:
     """Create and return a configured AsyncIOScheduler attached to the bot app."""
     scheduler = AsyncIOScheduler()
 
-    for person_name, chat_id, prompt_time, timezone_str in [
-        ("Mom", MOM_CHAT_ID, MOM_PROMPT_TIME, MOM_TIMEZONE),
-        ("Dad", DAD_CHAT_ID, DAD_PROMPT_TIME, DAD_TIMEZONE),
-    ]:
+    for person_name, chat_id, timezone_str in _PEOPLE:
         if not chat_id:
             continue
-
-        hour, minute = prompt_time.split(":")
-        tz = pytz.timezone(timezone_str)
-
-        scheduler.add_job(
-            send_prompt,
-            trigger=CronTrigger(
-                day=f"*/{PROMPT_CADENCE_DAYS}",
-                hour=int(hour),
-                minute=int(minute),
-                timezone=tz,
-            ),
-            args=[app, chat_id, person_name],
-            id=f"prompt_{person_name.lower()}",
-            replace_existing=True,
-        )
+        _schedule_next(scheduler, app, chat_id, person_name, timezone_str)
 
     return scheduler
 
 
-async def send_prompt(app, chat_id: int, person_name: str) -> None:
-    """Pick the next prompt and send it to the given chat."""
+async def send_prompt(app, chat_id: int, person_name: str, timezone_str: str) -> None:
+    """Pick the next prompt, send it, then schedule the next random firing."""
     state = load_state()
     person_state = state.get(person_name, default_person_state())
 
@@ -77,10 +90,15 @@ async def send_prompt(app, chat_id: int, person_name: str) -> None:
     await app.bot.send_message(chat_id, prompt_text)
     logger.info("Sent prompt to %s: %s", person_name, prompt_text[:60])
 
+    scheduler = app.bot_data.get("scheduler")
+
+    # Schedule next random prompt
+    if scheduler is not None:
+        _schedule_next(scheduler, app, chat_id, person_name, timezone_str)
+
     # Schedule a one-shot nudge check 48h from now
     nudge_time = datetime.datetime.utcnow() + datetime.timedelta(hours=_NUDGE_HOURS)
     try:
-        scheduler = app.bot_data.get("scheduler")
         if scheduler is not None:
             scheduler.add_job(
                 send_nudge,
@@ -112,7 +130,6 @@ async def send_nudge(app, chat_id: int, person_name: str) -> None:
     if last_response_time is not None:
         response_dt = datetime.datetime.fromisoformat(last_response_time)
         if response_dt >= prompt_dt:
-            # Already responded after the last prompt — no nudge needed
             return
 
     person_state["nudge_sent"] = True

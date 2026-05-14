@@ -30,9 +30,10 @@ GOOGLE_DRIVE_FOLDER_ID: str = os.environ["GOOGLE_DRIVE_FOLDER_ID"]
 GOOGLE_SERVICE_ACCOUNT_JSON: str = os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"]
 
 # --- Schedule config ---
-MOM_PROMPT_TIME: str = os.environ.get("MOM_PROMPT_TIME", "10:00")
-DAD_PROMPT_TIME: str = os.environ.get("DAD_PROMPT_TIME", "10:00")
-PROMPT_CADENCE_DAYS: int = int(os.environ.get("PROMPT_CADENCE_DAYS", "2"))
+PROMPT_HOUR_MIN: int = int(os.environ.get("PROMPT_HOUR_MIN", "8"))
+PROMPT_HOUR_MAX: int = int(os.environ.get("PROMPT_HOUR_MAX", "20"))
+PROMPT_CADENCE_MIN_DAYS: int = int(os.environ.get("PROMPT_CADENCE_MIN_DAYS", "1"))
+PROMPT_CADENCE_MAX_DAYS: int = int(os.environ.get("PROMPT_CADENCE_MAX_DAYS", "3"))
 MOM_TIMEZONE: str = os.environ.get("MOM_TIMEZONE", "America/New_York")
 DAD_TIMEZONE: str = os.environ.get("DAD_TIMEZONE", "America/New_York")
 
