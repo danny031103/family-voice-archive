@@ -2,6 +2,7 @@ services:
   - type: web
     name: family-voice-archive
     runtime: python
+    pythonVersion: "3.12.0"
     plan: free
     branch: main
     buildCommand: pip install -r requirements.txt
