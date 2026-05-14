@@ -2,7 +2,7 @@
 
 ## Context
 
-The project (`/Users/daniel.brito/Desktop/Family Story Vault/`) is greenfield — only `prd.md` and `CLAUDE.md` exist. The PRD (v1.0, May 2026) fully specifies a Telegram bot that captures parents' voice notes, transcribes them via Claude, stores audio + markdown in Google Drive (browsable in Obsidian), and indexes embeddings in Supabase pgvector for later RAG.
+The project is greenfield — only `prd.md` and `CLAUDE.md` exist. The PRD (v1.0, May 2026) fully specifies a Telegram bot that captures parents' voice notes, transcribes them via Claude, stores audio + markdown in Google Drive (browsable in Obsidian), and indexes embeddings in Supabase pgvector for later RAG.
 
 We are implementing it as a sequence of agent-executable phases. Each phase has a clear scope, deliverable, and verification step so an agent can be handed exactly one phase at a time without losing the thread.
 
