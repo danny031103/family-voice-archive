@@ -29,8 +29,8 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     today = datetime.date.today().isoformat()
-    # Use a placeholder prompt (Phase 2 will supply real prompts)
-    prompt = "Tell me a story from your life."
+    state = load_state()
+    prompt = state.get(person, default_person_state()).get("last_prompt_text") or "Tell me a story from your life."
 
     # 3. Download voice file from Telegram
     voice_file = await context.bot.get_file(update.message.voice.file_id)
