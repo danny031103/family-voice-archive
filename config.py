@@ -27,7 +27,9 @@ SUPABASE_KEY: str = os.environ["SUPABASE_KEY"]
 
 # --- Google Drive ---
 GOOGLE_DRIVE_FOLDER_ID: str = os.environ["GOOGLE_DRIVE_FOLDER_ID"]
-GOOGLE_SERVICE_ACCOUNT_JSON: str = os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"]
+GOOGLE_CLIENT_ID: str = os.environ["GOOGLE_CLIENT_ID"]
+GOOGLE_CLIENT_SECRET: str = os.environ["GOOGLE_CLIENT_SECRET"]
+GOOGLE_REFRESH_TOKEN: str = os.environ["GOOGLE_REFRESH_TOKEN"]
 
 # --- Schedule config ---
 PROMPT_HOUR_MIN: int = int(os.environ.get("PROMPT_HOUR_MIN", "8"))

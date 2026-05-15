@@ -1,33 +1,29 @@
 """Upload audio .ogg and markdown .md to Google Drive."""
 import io
-import json
 import logging
 
-from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload, MediaIoBaseUpload
 from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
 
-from config import GOOGLE_DRIVE_FOLDER_ID, GOOGLE_SERVICE_ACCOUNT_JSON
+from config import GOOGLE_DRIVE_FOLDER_ID, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN
 
 logger = logging.getLogger(__name__)
 
-SCOPES = ["https://www.googleapis.com/auth/drive"]
+TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 
 def get_drive_service():
-    """Return an authenticated Google Drive service client.
-
-    GOOGLE_SERVICE_ACCOUNT_JSON may be a file path (local dev) or raw JSON
-    content (Render — paste the entire JSON as the env var value).
-    """
-    value = GOOGLE_SERVICE_ACCOUNT_JSON.strip()
-    if value.startswith("{"):
-        info = json.loads(value)
-        creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
-    else:
-        creds = service_account.Credentials.from_service_account_file(value, scopes=SCOPES)
+    """Return an authenticated Drive client using OAuth refresh token."""
+    creds = Credentials(
+        token=None,
+        refresh_token=GOOGLE_REFRESH_TOKEN,
+        client_id=GOOGLE_CLIENT_ID,
+        client_secret=GOOGLE_CLIENT_SECRET,
+        token_uri=TOKEN_URI,
+    )
     return build("drive", "v3", credentials=creds, cache_discovery=False)
 
 
