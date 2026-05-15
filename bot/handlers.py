@@ -6,6 +6,7 @@ import shutil
 
 from telegram import Update
 from telegram.ext import ContextTypes
+from tenacity import RetryError
 
 from config import ALLOWED_CHAT_IDS, ARCHIVIST_CHAT_ID, DRY_RUN
 from processing.transcription import TranscriptionError, transcribe_audio
@@ -130,12 +131,14 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
 
     except Exception as exc:
-        logger.exception("Unexpected error in handle_voice: %s", exc)
+        # Unwrap tenacity RetryError to surface the real underlying exception
+        actual_exc = exc.last_attempt.exception() if isinstance(exc, RetryError) else exc
+        logger.exception("Unexpected error in handle_voice: %s", actual_exc)
         # 12. Notify archivist — never reply to parent with error
         try:
             await context.bot.send_message(
                 ARCHIVIST_CHAT_ID,
-                f"Unexpected error processing {person}'s voice note: {exc}",
+                f"Unexpected error processing {person}'s voice note: {actual_exc}",
             )
         except Exception:
             logger.exception("Failed to notify archivist")

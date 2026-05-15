@@ -5,8 +5,9 @@ import logging
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload, MediaIoBaseUpload
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
 
 from config import GOOGLE_DRIVE_FOLDER_ID, GOOGLE_SERVICE_ACCOUNT_JSON
 
@@ -52,7 +53,7 @@ def ensure_folder(service, parent_id: str, folder_name: str) -> str:
     return folder["id"]
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), before_sleep=before_sleep_log(logger, logging.WARNING))
 async def upload_audio(file_path: str, person: str, filename: str) -> str:
     """Upload .ogg file to _audio/<person_lower>/ folder. Returns Drive file ID."""
     service = get_drive_service()
@@ -76,7 +77,7 @@ async def upload_audio(file_path: str, person: str, filename: str) -> str:
     return file_id
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), before_sleep=before_sleep_log(logger, logging.WARNING))
 async def upload_note(content: str, person: str, theme_folder: str, filename: str) -> str:
     """Upload .md note to <person>/<theme_folder>/. Returns Drive file path string."""
     service = get_drive_service()

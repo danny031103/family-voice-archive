@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Family Voice Archive — a Telegram bot that sends scheduled story prompts to family members, collects voice note responses, transcribes them via Claude AI, and saves audio + markdown notes to Google Drive for browsing in Obsidian.
+Family Voice Archive — a Telegram bot that sends scheduled story prompts to family members, collects voice note responses, transcribes them via OpenAI Whisper, and saves audio + markdown notes to Google Drive for browsing in Obsidian.
 
 Full specification: `prd.md`
 
@@ -29,7 +29,7 @@ Copy `.env.example` to `.env` and fill in all values before running. See `prd.md
 The pipeline runs on every incoming voice note:
 
 ```
-Telegram voice note → download audio → Claude transcription → Claude structuring
+Telegram voice note → download audio → Whisper transcription → Claude structuring
 → Google Drive (audio file) → Google Drive (markdown note) → Supabase embedding
 → Archivist notification
 ```
@@ -48,7 +48,7 @@ Local dev uses polling mode (no `WEBHOOK_URL` set). **Do not run locally while R
 | `bot/scheduler.py` | APScheduler cadence — prompts every 2 days per parent, nudge if no reply in 48h |
 | `bot/commands.py` | `/ask`, `/status`, `/history`, `/prompt`, `/add` |
 | `processing/claude.py` | All Claude API calls |
-| `processing/transcription.py` | Audio (base64) → raw transcript via Claude |
+| `processing/transcription.py` | Audio file path → raw transcript via Whisper |
 | `processing/structurer.py` | Raw transcript → structured JSON (title, themes, summary, stage directions) |
 | `processing/embeddings.py` | Generate embeddings and write to Supabase pgvector |
 | `storage/google_drive.py` | Upload audio `.ogg` and markdown `.md` to Drive |
@@ -59,10 +59,10 @@ Local dev uses polling mode (no `WEBHOOK_URL` set). **Do not run locally while R
 ### Claude API usage
 
 - Model: `claude-sonnet-4-20250514`
-- Transcription: audio sent as base64 to Claude — no Whisper dependency
-- Structuring: Claude extracts title, themes (auto-generates vault folder), summary, stage directions (`[laughing]`, `[gets quiet]`)
-- Embeddings: Claude API or `text-embedding-3-small` via OpenAI (decide based on cost)
-- All Claude calls live in `processing/claude.py`
+- Transcription: OpenAI Whisper (`whisper-1`) via `openai` SDK — Claude's document content block does not support `.ogg` audio and raises `BadRequestError`
+- Structuring: Claude extracts title, themes (auto-generates vault folder), summary (`[laughing]`-style stage directions are not currently added — Whisper returns plain text)
+- Embeddings: `text-embedding-3-small` via OpenAI (decide on cost)
+- All Claude calls live in `processing/claude.py`; Whisper call lives in `transcribe()` in the same file
 
 ### Google Drive / Obsidian layout
 
