@@ -67,8 +67,11 @@ def build_scheduler(app) -> AsyncIOScheduler:
     return scheduler
 
 
-async def send_prompt(app, chat_id: int, person_name: str, timezone_str: str) -> None:
+async def send_prompt(app, chat_id: int, person_name: str, timezone_str: str | None = None) -> None:
     """Pick the next prompt, send it, then schedule the next random firing."""
+    if timezone_str is None:
+        timezone_str = next((tz for name, _, tz in _PEOPLE if name == person_name), "America/New_York")
+
     state = load_state()
     person_state = state.get(person_name, default_person_state())
 

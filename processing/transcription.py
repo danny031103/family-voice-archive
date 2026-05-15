@@ -1,4 +1,6 @@
-"""Audio (base64) → raw transcript via Claude."""
+"""Audio → raw transcript via OpenAI Whisper."""
+import asyncio
+
 from processing.claude import transcribe
 
 
@@ -13,6 +15,6 @@ async def transcribe_audio(file_path: str) -> str:
     On repeated failure, raises TranscriptionError so caller can flag for manual review.
     """
     try:
-        return transcribe(file_path)
+        return await asyncio.to_thread(transcribe, file_path)
     except Exception as exc:
         raise TranscriptionError(f"Transcription failed for {file_path}: {exc}") from exc

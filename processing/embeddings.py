@@ -1,4 +1,5 @@
 """Generate embeddings and write to Supabase pgvector."""
+import asyncio
 import json
 import logging
 import os
@@ -35,7 +36,7 @@ def generate_embedding(text: str) -> list:
 async def generate_and_store(recording_id: str, recording: dict) -> None:
     try:
         text = build_embedding_input(recording)
-        embedding = generate_embedding(text)
+        embedding = await asyncio.to_thread(generate_embedding, text)
         await vector_db.mark_embedded(recording_id, embedding)
     except Exception as exc:
         logger.error("Failed to generate/store embedding for %s: %s", recording_id, exc)
@@ -105,7 +106,7 @@ async def sweep_unembedded() -> None:
             continue
         try:
             text = build_embedding_input(row)
-            embedding = generate_embedding(text)
+            embedding = await asyncio.to_thread(generate_embedding, text)
             await vector_db.mark_embedded(recording_id, embedding)
             succeeded.add(recording_id)
             logger.info("sweep_unembedded: embedded %s", recording_id)

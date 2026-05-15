@@ -1,4 +1,5 @@
 """Phase 4 — semantic search + Claude answer generation for /ask command."""
+import asyncio
 import logging
 
 from config import CLAUDE_MODEL
@@ -17,7 +18,7 @@ _SYSTEM_PROMPT = (
 
 async def retrieve_context(question: str, k: int = 5) -> list:
     """Return top-k relevant recordings for a question."""
-    embedding = generate_embedding(question)
+    embedding = await asyncio.to_thread(generate_embedding, question)
     return await search_similar(embedding, limit=k)
 
 
@@ -55,7 +56,8 @@ async def answer_query(question: str) -> dict:
     user_message = f"{context_block}\n\nQuestion: {question}\n\nAnswer:"
 
     client = get_client()
-    response = client.messages.create(
+    response = await asyncio.to_thread(
+        client.messages.create,
         model=CLAUDE_MODEL,
         max_tokens=1024,
         system=_SYSTEM_PROMPT,

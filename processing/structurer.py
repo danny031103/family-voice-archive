@@ -1,4 +1,6 @@
 """Raw transcript → structured JSON (title, themes, summary, folder)."""
+import asyncio
+
 from processing.claude import structure_transcript
 
 REQUIRED_KEYS = {"title", "themes", "summary", "folder"}
@@ -10,7 +12,7 @@ async def structure(transcript: str, prompt: str) -> dict:
     Keys: title (str), themes (list[str]), summary (str), folder (str).
     themes are used to auto-create the Obsidian/Drive folder path.
     """
-    result = structure_transcript(transcript, prompt)
+    result = await asyncio.to_thread(structure_transcript, transcript, prompt)
 
     missing = REQUIRED_KEYS - set(result.keys())
     if missing:

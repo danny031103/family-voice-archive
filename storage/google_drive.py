@@ -1,4 +1,5 @@
 """Upload audio .ogg and markdown .md to Google Drive."""
+import asyncio
 import io
 import logging
 
@@ -52,23 +53,17 @@ def ensure_folder(service, parent_id: str, folder_name: str) -> str:
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), before_sleep=before_sleep_log(logger, logging.WARNING))
 async def upload_audio(file_path: str, person: str, filename: str) -> str:
     """Upload .ogg file to _audio/<person_lower>/ folder. Returns Drive file ID."""
-    service = get_drive_service()
-    person_lower = person.lower()
+    def _upload():
+        service = get_drive_service()
+        person_lower = person.lower()
+        audio_root_id = ensure_folder(service, GOOGLE_DRIVE_FOLDER_ID, "_audio")
+        person_folder_id = ensure_folder(service, audio_root_id, person_lower)
+        media = MediaFileUpload(file_path, mimetype="audio/ogg", resumable=False)
+        file_metadata = {"name": filename, "parents": [person_folder_id]}
+        uploaded = service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+        return uploaded["id"]
 
-    audio_root_id = ensure_folder(service, GOOGLE_DRIVE_FOLDER_ID, "_audio")
-    person_folder_id = ensure_folder(service, audio_root_id, person_lower)
-
-    media = MediaFileUpload(file_path, mimetype="audio/ogg", resumable=False)
-    file_metadata = {
-        "name": filename,
-        "parents": [person_folder_id],
-    }
-    uploaded = (
-        service.files()
-        .create(body=file_metadata, media_body=media, fields="id")
-        .execute()
-    )
-    file_id = uploaded["id"]
+    file_id = await asyncio.to_thread(_upload)
     logger.info("Uploaded audio %s → Drive id=%s", filename, file_id)
     return file_id
 
@@ -76,21 +71,16 @@ async def upload_audio(file_path: str, person: str, filename: str) -> str:
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), before_sleep=before_sleep_log(logger, logging.WARNING))
 async def upload_note(content: str, person: str, theme_folder: str, filename: str) -> str:
     """Upload .md note to <person>/<theme_folder>/. Returns Drive file path string."""
-    service = get_drive_service()
+    def _upload():
+        service = get_drive_service()
+        person_folder_id = ensure_folder(service, GOOGLE_DRIVE_FOLDER_ID, person)
+        theme_folder_id = ensure_folder(service, person_folder_id, theme_folder)
+        content_bytes = content.encode("utf-8")
+        media = MediaIoBaseUpload(io.BytesIO(content_bytes), mimetype="text/plain", resumable=False)
+        file_metadata = {"name": filename, "parents": [theme_folder_id]}
+        service.files().create(body=file_metadata, media_body=media, fields="id").execute()
 
-    person_folder_id = ensure_folder(service, GOOGLE_DRIVE_FOLDER_ID, person)
-    theme_folder_id = ensure_folder(service, person_folder_id, theme_folder)
-
-    content_bytes = content.encode("utf-8")
-    media = MediaIoBaseUpload(
-        io.BytesIO(content_bytes), mimetype="text/plain", resumable=False
-    )
-    file_metadata = {
-        "name": filename,
-        "parents": [theme_folder_id],
-    }
-    service.files().create(body=file_metadata, media_body=media, fields="id").execute()
-
+    await asyncio.to_thread(_upload)
     drive_path = f"{person}/{theme_folder}/{filename}"
     logger.info("Uploaded note → %s", drive_path)
     return drive_path
