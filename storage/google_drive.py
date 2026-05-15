@@ -69,8 +69,8 @@ async def upload_audio(file_path: str, person: str, filename: str) -> str:
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), before_sleep=before_sleep_log(logger, logging.WARNING))
-async def upload_note(content: str, person: str, theme_folder: str, filename: str) -> str:
-    """Upload .md note to <person>/<theme_folder>/. Returns Drive file path string."""
+async def upload_note(content: str, person: str, theme_folder: str, filename: str) -> tuple[str, str]:
+    """Upload .md note to <person>/<theme_folder>/. Returns (drive_path, drive_file_id)."""
     def _upload():
         service = get_drive_service()
         person_folder_id = ensure_folder(service, GOOGLE_DRIVE_FOLDER_ID, person)
@@ -78,9 +78,20 @@ async def upload_note(content: str, person: str, theme_folder: str, filename: st
         content_bytes = content.encode("utf-8")
         media = MediaIoBaseUpload(io.BytesIO(content_bytes), mimetype="text/plain", resumable=False)
         file_metadata = {"name": filename, "parents": [theme_folder_id]}
-        service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+        result = service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+        return result["id"]
 
-    await asyncio.to_thread(_upload)
+    file_id = await asyncio.to_thread(_upload)
     drive_path = f"{person}/{theme_folder}/{filename}"
-    logger.info("Uploaded note → %s", drive_path)
-    return drive_path
+    logger.info("Uploaded note → %s (id=%s)", drive_path, file_id)
+    return drive_path, file_id
+
+
+async def delete_file(file_id: str) -> None:
+    """Permanently delete a Drive file by ID."""
+    def _delete():
+        service = get_drive_service()
+        service.files().delete(fileId=file_id).execute()
+
+    await asyncio.to_thread(_delete)
+    logger.info("Deleted Drive file id=%s", file_id)

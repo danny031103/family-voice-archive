@@ -93,11 +93,10 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             logger.info("[DRY_RUN] would upload to Drive: _audio/%s/%s", person.lower(), audio_filename)
             logger.info("[DRY_RUN] would upload to Drive: %s/%s/%s", person, folder, note_filename)
         else:
-            await upload_audio(tmp_path, person, audio_filename)
-            await upload_note(note_content, person, folder, note_filename)
+            audio_drive_id = await upload_audio(tmp_path, person, audio_filename)
+            note_drive_path, note_drive_id = await upload_note(note_content, person, folder, note_filename)
 
             audio_drive_path = f"_audio/{person.lower()}/{audio_filename}"
-            note_drive_path = f"{person}/{folder}/{note_filename}"
             row = {
                 "person": person,
                 "title": title,
@@ -108,6 +107,9 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 "transcript": transcript,
                 "audio_drive_path": audio_drive_path,
                 "obsidian_note_path": note_drive_path,
+                "audio_drive_id": audio_drive_id,
+                "note_drive_id": note_drive_id,
+                "telegram_message_id": update.message.message_id,
             }
             recording_id = await vector_db.insert_recording(row)
             await embeddings.generate_and_store(recording_id, row)
@@ -125,9 +127,11 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await update.message.reply_text("Got it, thank you ♥")
 
         # 12. Notify archivist
+        record_ref = f"\n`/delete {recording_id}`" if not DRY_RUN else ""
         await context.bot.send_message(
             ARCHIVIST_CHAT_ID,
-            f"New story from {person} saved! \U0001f3b5 {folder} > {title}",
+            f"New story from {person} saved! \U0001f3b5 {folder} > {title}{record_ref}",
+            parse_mode="Markdown",
         )
 
     except Exception as exc:

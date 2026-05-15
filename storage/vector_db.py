@@ -60,6 +60,21 @@ async def mark_embedded(recording_id: str, embedding: list) -> None:
     await asyncio.to_thread(_update)
 
 
+async def delete_recording(recording_id: str) -> dict | None:
+    """Delete a recording by UUID. Returns the deleted row, or None if not found."""
+    def _delete():
+        client = get_client()
+        result = (
+            client.table("recordings")
+            .delete()
+            .eq("id", recording_id)
+            .execute()
+        )
+        return result.data[0] if result.data else None
+
+    return await asyncio.to_thread(_delete)
+
+
 async def search_similar(embedding: list, limit: int = 5) -> list:
     """Return recordings most similar to the given embedding vector (Phase 4)."""
     def _rpc():

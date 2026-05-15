@@ -7,6 +7,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from config import ALLOWED_CHAT_IDS, ARCHIVIST_CHAT_ID
+from storage import google_drive, vector_db
 from bot.state import (
     default_person_state,
     load_recording_index,
@@ -133,6 +134,42 @@ async def cmd_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             if chat_id:
                 await send_prompt(app, chat_id, name)
         await update.message.reply_text("Prompts sent to all parents.")
+
+
+async def cmd_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/delete <recording_id> — delete a recording from Drive and Supabase."""
+    if not _is_archivist(update):
+        return
+
+    if not context.args:
+        await update.message.reply_text("Usage: /delete <recording_id>")
+        return
+
+    recording_id = context.args[0].strip()
+    row = await vector_db.delete_recording(recording_id)
+    if row is None:
+        await update.message.reply_text(f"No recording found with id `{recording_id}`.", parse_mode="Markdown")
+        return
+
+    errors = []
+    for field, label in [("audio_drive_id", "audio"), ("note_drive_id", "note")]:
+        file_id = row.get(field)
+        if file_id:
+            try:
+                await google_drive.delete_file(file_id)
+            except Exception as exc:
+                logger.error("Failed to delete Drive %s (id=%s): %s", label, file_id, exc)
+                errors.append(f"{label} ({exc})")
+
+    title = row.get("title", recording_id)
+    if errors:
+        await update.message.reply_text(
+            f"Deleted from Supabase, but Drive deletion failed for: {', '.join(errors)}.\n"
+            f"Recording: *{title}*",
+            parse_mode="Markdown",
+        )
+    else:
+        await update.message.reply_text(f"Deleted: *{title}*", parse_mode="Markdown")
 
 
 async def cmd_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
