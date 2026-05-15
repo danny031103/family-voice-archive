@@ -75,6 +75,19 @@ async def delete_recording(recording_id: str) -> dict | None:
     return await asyncio.to_thread(_delete)
 
 
+async def get_recent_recordings(person: str | None = None, limit: int = 10) -> list:
+    """Return the most recent recordings, optionally filtered by person."""
+    def _query():
+        client = get_client()
+        q = client.table("recordings").select("id, person, title, date, obsidian_note_path")
+        if person:
+            q = q.eq("person", person)
+        result = q.order("date", desc=True).limit(limit).execute()
+        return result.data
+
+    return await asyncio.to_thread(_query)
+
+
 async def search_similar(embedding: list, limit: int = 5) -> list:
     """Return recordings most similar to the given embedding vector (Phase 4)."""
     def _rpc():

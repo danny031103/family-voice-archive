@@ -10,7 +10,6 @@ from config import ALLOWED_CHAT_IDS, ARCHIVIST_CHAT_ID
 from storage import google_drive, vector_db
 from bot.state import (
     default_person_state,
-    load_recording_index,
     load_state,
     save_state,
 )
@@ -92,15 +91,7 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     args = context.args
     person_filter = args[0].strip() if args else None
 
-    index = load_recording_index()
-
-    if person_filter:
-        entries = [e for e in index if e.get("person", "").lower() == person_filter.lower()]
-    else:
-        entries = index
-
-    recent = entries[-10:] if len(entries) > 10 else entries
-    recent = list(reversed(recent))
+    recent = await vector_db.get_recent_recordings(person=person_filter)
 
     if not recent:
         label = f" for {person_filter}" if person_filter else ""
@@ -109,7 +100,10 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     lines = [f"*Last {len(recent)} recording(s)*\n"]
     for e in recent:
-        lines.append(f"• [{e.get('date', '?')}] *{e.get('person', '?')}* — {e.get('title', '?')} ({e.get('folder', '?')})")
+        lines.append(
+            f"• [{e.get('date', '?')}] *{e.get('person', '?')}* — {e.get('title', '?')}"
+            f"\n  `/delete {e['id']}`"
+        )
 
     await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
