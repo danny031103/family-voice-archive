@@ -1,5 +1,4 @@
 """All Claude API calls — transcription, structuring, and prompt selection."""
-import base64
 import json
 import re
 
@@ -15,40 +14,18 @@ def get_client() -> anthropic.Anthropic:
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-def transcribe(audio_bytes: bytes, mime_type: str = "audio/ogg") -> str:
-    """Send audio as base64 to Claude and return raw transcript text."""
-    client = get_client()
-    audio_b64 = base64.standard_b64encode(audio_bytes).decode("utf-8")
-
-    response = client.messages.create(
-        model=CLAUDE_MODEL,
-        max_tokens=4096,
-        system=(
-            "You are transcribing a voice note. Preserve the speaker's exact voice and phrasing. "
-            "Add stage directions like [laughing], [gets quiet], [sighs] where natural. "
-            "Return only the transcript text."
-        ),
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "document",
-                        "source": {
-                            "type": "base64",
-                            "media_type": mime_type,
-                            "data": audio_b64,
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": "Please transcribe this voice note.",
-                    },
-                ],
-            }
-        ],
-    )
-    return response.content[0].text.strip()
+def transcribe(file_path: str) -> str:
+    """Transcribe an audio file via OpenAI Whisper and return raw transcript text."""
+    import openai
+    from config import OPENAI_API_KEY
+    oai = openai.OpenAI(api_key=OPENAI_API_KEY)
+    with open(file_path, "rb") as f:
+        result = oai.audio.transcriptions.create(
+            model="whisper-1",
+            file=f,
+            response_format="text",
+        )
+    return result.strip()
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
