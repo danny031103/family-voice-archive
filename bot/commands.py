@@ -3,7 +3,7 @@ import json
 import logging
 import os
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from config import ALLOWED_CHAT_IDS, ARCHIVIST_CHAT_ID
@@ -99,13 +99,21 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     lines = [f"*Last {len(recent)} recording(s)*\n"]
+    keyboard = []
     for e in recent:
-        lines.append(
-            f"• [{e.get('date', '?')}] *{e.get('person', '?')}* — {e.get('title', '?')}"
-            f"\n  `/delete {e['id']}`"
-        )
+        lines.append(f"• [{e.get('date', '?')}] *{e.get('person', '?')}* — {e.get('title', '?')}")
+        keyboard.append([
+            InlineKeyboardButton(
+                f"🗑 Delete: {e.get('title', e['id'])[:40]}",
+                callback_data=f"delete:{e['id']}",
+            )
+        ])
 
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    await update.message.reply_text(
+        "\n".join(lines),
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
 
 
 async def cmd_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -164,6 +172,41 @@ async def cmd_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         )
     else:
         await update.message.reply_text(f"Deleted: *{title}*", parse_mode="Markdown")
+
+
+async def callback_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Inline-button handler for delete confirmations from /history."""
+    query = update.callback_query
+    await query.answer()
+
+    if query.from_user.id != ARCHIVIST_CHAT_ID:
+        return
+
+    recording_id = query.data.removeprefix("delete:")
+    row = await vector_db.delete_recording(recording_id)
+    if row is None:
+        await query.edit_message_text(f"No recording found with id `{recording_id}`.", parse_mode="Markdown")
+        return
+
+    errors = []
+    for field, label in [("audio_drive_id", "audio"), ("note_drive_id", "note")]:
+        file_id = row.get(field)
+        if file_id:
+            try:
+                await google_drive.delete_file(file_id)
+            except Exception as exc:
+                logger.error("Failed to delete Drive %s (id=%s): %s", label, file_id, exc)
+                errors.append(f"{label} ({exc})")
+
+    title = row.get("title", recording_id)
+    if errors:
+        await query.edit_message_text(
+            f"Deleted from Supabase, but Drive deletion failed for: {', '.join(errors)}.\n"
+            f"Recording: *{title}*",
+            parse_mode="Markdown",
+        )
+    else:
+        await query.edit_message_text(f"Deleted: *{title}*", parse_mode="Markdown")
 
 
 async def cmd_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

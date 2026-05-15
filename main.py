@@ -6,10 +6,10 @@ import os
 from aiohttp import web
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters
 
 from bot.handlers import handle_voice, handle_text
-from bot.commands import cmd_ask, cmd_status, cmd_history, cmd_prompt, cmd_add, cmd_delete
+from bot.commands import cmd_ask, cmd_status, cmd_history, cmd_prompt, cmd_add, cmd_delete, callback_delete
 from bot.scheduler import build_scheduler
 from config import TELEGRAM_BOT_TOKEN, WEBHOOK_URL, WEBHOOK_SECRET
 from processing.embeddings import sweep_unembedded
@@ -92,6 +92,7 @@ def main() -> None:
     app.add_handler(CommandHandler("add", cmd_add))
     app.add_handler(CommandHandler("ask", cmd_ask))
     app.add_handler(CommandHandler("delete", cmd_delete))
+    app.add_handler(CallbackQueryHandler(callback_delete, pattern=r"^delete:"))
 
     port = int(os.getenv("PORT", "8080"))
 
